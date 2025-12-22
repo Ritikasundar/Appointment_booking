@@ -1,25 +1,57 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { databases, DATABASE_ID, APPOINTMENT_COLLECTION_ID } from "../appwrite/config";
-import { ID, Query } from "appwrite";
+import {
+  databases,
+  DATABASE_ID,
+  APPOINTMENT_COLLECTION_ID,
+  PATIENT_COLLECTION_ID,
+} from "../appwrite/config";
+import { Query, ID } from "appwrite";
 
 function PatientDashboard() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const location = useLocation();
   const patientEmail = location.state?.email;
 
   const [appointments, setAppointments] = useState([]);
-  const [showForm, setShowForm] = useState(false);
+  const [checkingPatient, setCheckingPatient] = useState(true);
 
   const [form, setForm] = useState({
     doctorName: "",
     doctorEmail: "",
-    date: ""
+    date: "",
   });
 
   useEffect(() => {
-    fetchAppointments();
-  }, []);
+    if (!patientEmail) {
+      navigate("/login");
+      return;
+    }
+    checkPatientExists();
+  }, [patientEmail]);
+
+  const checkPatientExists = async () => {
+    try {
+      const res = await databases.listDocuments(
+        DATABASE_ID,
+        PATIENT_COLLECTION_ID,
+        [Query.equal("email", patientEmail)]
+      );
+
+      if (res.documents.length === 0) {
+        // New patient → registration
+        navigate("/patient-registration", {
+          state: { email: patientEmail },
+        });
+      } else {
+        // Existing patient → dashboard
+        await fetchAppointments();
+        setCheckingPatient(false);
+      }
+    } catch (error) {
+      console.error("Error checking patient:", error);
+    }
+  };
 
   const fetchAppointments = async () => {
     const response = await databases.listDocuments(
@@ -49,16 +81,19 @@ function PatientDashboard() {
         doctorName: form.doctorName,
         doctorEmail: form.doctorEmail,
         date: form.date,
-        status: "Pending"
+        status: "Pending",
       }
     );
 
     alert("Appointment booked");
 
     setForm({ doctorName: "", doctorEmail: "", date: "" });
-    setShowForm(false);
     fetchAppointments();
   };
+
+  if (checkingPatient) {
+    return <p style={{ padding: 20 }}>Checking patient profile...</p>;
+  }
 
   return (
     <div style={styles.container}>
@@ -66,7 +101,7 @@ function PatientDashboard() {
       <p>Logged in as: {patientEmail}</p>
 
       <button
-        style={styles.button}
+        style={styles.bookBtn}
         onClick={() =>
           navigate("/book-appointment", {
             state: { email: patientEmail },
@@ -75,8 +110,6 @@ function PatientDashboard() {
       >
         Book Appointment
       </button>
-
-      
 
       <h2>Your Appointments</h2>
 
@@ -103,12 +136,6 @@ const styles = {
     padding: "10px 20px",
     marginBottom: "15px",
     cursor: "pointer",
-  },
-  form: {
-    background: "white",
-    padding: "15px",
-    marginBottom: "20px",
-    width: "300px",
   },
   card: {
     background: "white",

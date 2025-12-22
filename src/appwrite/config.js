@@ -11,5 +11,6 @@ export const databases = new Databases(client);
 export const DATABASE_ID = "6941625a001b5bd4a18e";
 export const USER_COLLECTION_ID = "users";
 export const DOCTOR_COLLECTION_ID = "doctors";
+export const PATIENT_COLLECTION_ID = "patients";
 export const APPOINTMENT_COLLECTION_ID = "appointments";
 
