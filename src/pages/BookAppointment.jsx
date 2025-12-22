@@ -17,22 +17,19 @@ function BookAppointment() {
     date: "",
     time: "",
     reason: "",
+    needAudioCall: false,
+    needVideoCall: false,
   });
 
-  // 🔹 Fetch doctors on page load
+  // Fetch doctors
   useEffect(() => {
     const fetchDoctors = async () => {
-      try {
-        const res = await databases.listDocuments(
-          DATABASE_ID,
-          DOCTOR_COLLECTION_ID
-        );
-        setDoctors(res.documents);
-      } catch (err) {
-        console.error("Failed to fetch doctors", err);
-      }
+      const res = await databases.listDocuments(
+        DATABASE_ID,
+        DOCTOR_COLLECTION_ID
+      );
+      setDoctors(res.documents);
     };
-
     fetchDoctors();
   }, []);
 
@@ -40,43 +37,43 @@ function BookAppointment() {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+  const handleToggle = (field, value) => {
+    setForm({ ...form, [field]: value });
+  };
+
   const handleSubmit = async () => {
     if (!form.doctorName || !form.date || !form.time || !form.reason) {
-      alert("Please fill all fields");
+      alert("Please fill all required fields");
       return;
     }
 
-    try {
-      await databases.createDocument(
-        DATABASE_ID,
-        APPOINTMENT_COLLECTION_ID,
-        ID.unique(),
-        {
-          patientEmail,
-          doctorName: form.doctorName,
-          date: form.date,
-          time: form.time,
-          reason: form.reason,
-          status: "Pending",
-        }
-      );
+    await databases.createDocument(
+      DATABASE_ID,
+      APPOINTMENT_COLLECTION_ID,
+      ID.unique(),
+      {
+        patientEmail,
+        doctorName: form.doctorName,
+        date: form.date,
+        time: form.time,
+        reason: form.reason,
+        needAudioCall: form.needAudioCall,
+        needVideoCall: form.needVideoCall,
+        status: "Pending",
+      }
+    );
 
-      alert("Appointment booked successfully");
+    alert("Appointment booked successfully");
 
-      navigate("/patient-dashboard", {
-        state: { email: patientEmail },
-      });
-    } catch (err) {
-      console.error(err);
-      alert("Failed to book appointment");
-    }
+    navigate("/patient-dashboard", {
+      state: { email: patientEmail },
+    });
   };
 
   return (
     <div style={styles.container}>
       <h2>Book Appointment</h2>
 
-      {/* 🔽 Doctor Dropdown */}
       <select
         name="doctorName"
         value={form.doctorName}
@@ -115,6 +112,40 @@ function BookAppointment() {
         style={styles.input}
       />
 
+      {/* 🔘 Audio Call Toggle */}
+      <div style={styles.toggleGroup}>
+        <p>Need Audio Call?</p>
+        <button
+          style={form.needAudioCall ? styles.activeToggle : styles.toggle}
+          onClick={() => handleToggle("needAudioCall", true)}
+        >
+          Yes
+        </button>
+        <button
+          style={!form.needAudioCall ? styles.activeToggle : styles.toggle}
+          onClick={() => handleToggle("needAudioCall", false)}
+        >
+          No
+        </button>
+      </div>
+
+      {/* 🔘 Video Call Toggle */}
+      <div style={styles.toggleGroup}>
+        <p>Need Video Call?</p>
+        <button
+          style={form.needVideoCall ? styles.activeToggle : styles.toggle}
+          onClick={() => handleToggle("needVideoCall", true)}
+        >
+          Yes
+        </button>
+        <button
+          style={!form.needVideoCall ? styles.activeToggle : styles.toggle}
+          onClick={() => handleToggle("needVideoCall", false)}
+        >
+          No
+        </button>
+      </div>
+
       <button onClick={handleSubmit} style={styles.button}>
         Submit Appointment
       </button>
@@ -132,8 +163,25 @@ const styles = {
     padding: "10px",
     width: "300px",
   },
+  toggleGroup: {
+    marginBottom: "15px",
+  },
+  toggle: {
+    padding: "8px 15px",
+    marginRight: "10px",
+    cursor: "pointer",
+  },
+  activeToggle: {
+    padding: "8px 15px",
+    marginRight: "10px",
+    backgroundColor: "#3498db",
+    color: "white",
+    border: "none",
+    cursor: "pointer",
+  },
   button: {
     padding: "10px 20px",
+    marginTop: "15px",
   },
 };
 
