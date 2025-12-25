@@ -1,0 +1,25 @@
+//not used currently
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Join Call Test</title>
+    <style>
+      body {
+        font-family: Arial;
+        background: #f4f6f8;
+        padding: 40px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>✅ JOIN CALL PAGE LOADED</h1>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      document.body.innerHTML += `
+        <p><b>Channel:</b> ${params.get("channel")}</p>
+        <p><b>Token:</b> ${params.get("token")?.slice(0, 30)}...</p>
+      `;
+    </script>
+  </body>
+</html>

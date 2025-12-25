@@ -92,11 +92,22 @@ function AdminDashboard() {
   // ================= SEND MAIL =================
   const sendMail = async (appt) => {
     try {
+      // Fetch doctor email from Doctor collection
+      const doctorDoc = await databases.listDocuments(
+        DATABASE_ID,
+        DOCTOR_COLLECTION_ID,
+        [Query.equal("name", appt.doctorName)]
+      );
+
+      const doctorEmail =
+        doctorDoc.total > 0 ? doctorDoc.documents[0].email : null;
+
       const response = await fetch("http://localhost:5000/send-appointment-mail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientEmail: appt.patientEmail,
+          doctorEmail: doctorEmail,
           doctorName: appt.doctorName,
           date: appt.date,
           time: appt.time,
@@ -108,13 +119,52 @@ function AdminDashboard() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Mail sent to patient successfully");
+        alert("Mail sent to patient and doctor successfully");
       } else {
         alert("Mail sending failed");
       }
     } catch (err) {
       console.error(err);
       alert("Backend not reachable");
+    }
+  };
+
+  // ================= CREATE CALL TOKEN & SEND =================
+  const createTokenAndSendMail = async (appt) => {
+    try {
+      // Fetch doctor email
+      const doctorDoc = await databases.listDocuments(
+        DATABASE_ID,
+        DOCTOR_COLLECTION_ID,
+        [Query.equal("name", appt.doctorName)]
+      );
+
+      const doctorEmail =
+        doctorDoc.total > 0 ? doctorDoc.documents[0].email : null;
+
+      const res = await fetch(
+        "http://localhost:5000/create-call-and-send-mail",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            patientEmail: appt.patientEmail,
+            doctorEmail: doctorEmail,
+            doctorName: appt.doctorName,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert("Call link sent to patient and doctor email");
+      } else {
+        alert("Failed to create call");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Backend error");
     }
   };
 
@@ -148,6 +198,7 @@ function AdminDashboard() {
             <th>Reason</th>
             <th>Status</th>
             <th>Mail</th>
+            <th>Audio Call</th>
           </tr>
         </thead>
 
@@ -180,6 +231,20 @@ function AdminDashboard() {
                   Send
                 </button>
               </td>
+
+              <td>
+                {appt.needAudioCall ? (
+                  <button
+                    style={styles.audioButton}
+                    onClick={() => createTokenAndSendMail(appt)}
+                  >
+                    Create Token
+                  </button>
+                ) : (
+                  "No"
+                )}
+              </td>
+
             </tr>
           ))}
         </tbody>
@@ -193,6 +258,7 @@ const styles = {
   addButton: { padding: "10px 20px", background: "#3498db", color: "#fff" },
   saveButton: { padding: "10px", background: "#2ecc71", color: "#fff" },
   mailButton: { padding: "6px 14px", background: "#9b59b6", color: "#fff", border: "none" },
+  audioButton: { padding: "6px 12px", background: "#e67e22", color: "#fff", border: "none", cursor: "pointer" },
   form: { marginTop: "20px", background: "#fff", padding: "20px" },
   table: { width: "100%", marginTop: "20px", background: "#fff" },
 };
