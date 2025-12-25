@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { databases, DATABASE_ID } from "../appwrite/config";
-import { ID } from "appwrite";
+import { ID, Query } from "appwrite";
 
 const APPOINTMENT_COLLECTION_ID = "appointments";
 const DOCTOR_COLLECTION_ID = "doctors";
@@ -9,7 +9,9 @@ const DOCTOR_COLLECTION_ID = "doctors";
 function BookAppointment() {
   const location = useLocation();
   const navigate = useNavigate();
-  const patientEmail = location.state?.email;
+
+  const patientEmail = location.state?.email; // only patient email
+  // Removed patientName
 
   const [doctors, setDoctors] = useState([]);
   const [form, setForm] = useState({
@@ -47,27 +49,47 @@ function BookAppointment() {
       return;
     }
 
-    await databases.createDocument(
-      DATABASE_ID,
-      APPOINTMENT_COLLECTION_ID,
-      ID.unique(),
-      {
-        patientEmail,
-        doctorName: form.doctorName,
-        date: form.date,
-        time: form.time,
-        reason: form.reason,
-        needAudioCall: form.needAudioCall,
-        needVideoCall: form.needVideoCall,
-        status: "Pending",
+    try {
+      // Fetch doctor document to get email
+      const doctorRes = await databases.listDocuments(
+        DATABASE_ID,
+        DOCTOR_COLLECTION_ID,
+        [Query.equal("name", form.doctorName)]
+      );
+
+      if (doctorRes.total === 0) {
+        alert("Selected doctor not found");
+        return;
       }
-    );
 
-    alert("Appointment booked successfully");
+      const doctorEmail = doctorRes.documents[0].email;
 
-    navigate("/patient-dashboard", {
-      state: { email: patientEmail },
-    });
+      await databases.createDocument(
+        DATABASE_ID,
+        APPOINTMENT_COLLECTION_ID,
+        ID.unique(),
+        {
+          patientEmail,       // only patient email
+          doctorName: form.doctorName,
+          doctorEmail,        // store doctor's email
+          date: form.date,
+          time: form.time,
+          reason: form.reason,
+          needAudioCall: form.needAudioCall,
+          needVideoCall: form.needVideoCall,
+          status: "Pending",
+        }
+      );
+
+      alert("Appointment booked successfully");
+
+      navigate("/patient-dashboard", {
+        state: { email: patientEmail },
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to book appointment");
+    }
   };
 
   return (

@@ -7,6 +7,7 @@ import PatientDashboard from "./pages/PatientDashboard";
 import PatientRegistration from "./pages/PatientRegistration";
 import BookAppointment from "./pages/BookAppointment";
 import JoinCall from "./pages/JoinCall";
+import DoctorDashboard from "./pages/DoctorDashboard";
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
       <Route path="/patient-dashboard" element={<PatientDashboard />} />
       <Route path="/book-appointment" element={<BookAppointment />} />
       <Route path="/join-call" element={<JoinCall />} />
+      <Route path="/doctor-dashboard" element={<DoctorDashboard />} />
 
        <Route
         path="/patient-registration"
