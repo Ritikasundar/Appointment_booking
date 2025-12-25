@@ -19,19 +19,14 @@ function AdminDashboard() {
     specialization: "",
   });
 
-  // ---------------- DOCTOR HANDLING ----------------
+  // ================= DOCTOR =================
   const handleChange = (e) => {
     setDoctor({ ...doctor, [e.target.name]: e.target.value });
   };
 
   const handleAddDoctor = async () => {
     try {
-      if (
-        !doctor.name ||
-        !doctor.email ||
-        !doctor.phone ||
-        !doctor.specialization
-      ) {
+      if (!doctor.name || !doctor.email || !doctor.phone || !doctor.specialization) {
         alert("Please fill all fields");
         return;
       }
@@ -55,12 +50,7 @@ function AdminDashboard() {
       );
 
       alert("Doctor added successfully");
-      setDoctor({
-        name: "",
-        email: "",
-        phone: "",
-        specialization: "",
-      });
+      setDoctor({ name: "", email: "", phone: "", specialization: "" });
       setShowForm(false);
     } catch (error) {
       console.error(error);
@@ -68,7 +58,7 @@ function AdminDashboard() {
     }
   };
 
-  // ---------------- APPOINTMENTS ----------------
+  // ================= APPOINTMENTS =================
   const fetchAppointments = async () => {
     try {
       const res = await databases.listDocuments(
@@ -77,7 +67,7 @@ function AdminDashboard() {
       );
       setAppointments(res.documents);
     } catch (err) {
-      console.error("Failed to fetch appointments", err);
+      console.error("Fetch error", err);
     }
   };
 
@@ -93,11 +83,38 @@ function AdminDashboard() {
         appointmentId,
         { status: newStatus }
       );
+      fetchAppointments();
+    } catch (err) {
+      alert("Failed to update status");
+    }
+  };
 
-      fetchAppointments(); // refresh table
+  // ================= SEND MAIL =================
+  const sendMail = async (appt) => {
+    try {
+      const response = await fetch("http://localhost:5000/send-appointment-mail", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientEmail: appt.patientEmail,
+          doctorName: appt.doctorName,
+          date: appt.date,
+          time: appt.time,
+          status: appt.status,
+          reason: appt.reason,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert("Mail sent to patient successfully");
+      } else {
+        alert("Mail sending failed");
+      }
     } catch (err) {
       console.error(err);
-      alert("Failed to update status");
+      alert("Backend not reachable");
     }
   };
 
@@ -105,55 +122,20 @@ function AdminDashboard() {
     <div style={styles.container}>
       <h1>Admin Dashboard</h1>
 
-      {/* ADD DOCTOR */}
-      <button
-        style={styles.addButton}
-        onClick={() => setShowForm(!showForm)}
-      >
+      <button style={styles.addButton} onClick={() => setShowForm(!showForm)}>
         Add Doctor
       </button>
 
       {showForm && (
         <div style={styles.form}>
-          <input
-            name="name"
-            placeholder="Doctor Name"
-            value={doctor.name}
-            onChange={handleChange}
-            style={styles.input}
-          />
-
-          <input
-            name="email"
-            placeholder="Email"
-            value={doctor.email}
-            onChange={handleChange}
-            style={styles.input}
-          />
-
-          <input
-            name="phone"
-            placeholder="Phone"
-            value={doctor.phone}
-            onChange={handleChange}
-            style={styles.input}
-          />
-
-          <input
-            name="specialization"
-            placeholder="Specialization"
-            value={doctor.specialization}
-            onChange={handleChange}
-            style={styles.input}
-          />
-
-          <button onClick={handleAddDoctor} style={styles.saveButton}>
-            Save Doctor
-          </button>
+          <input name="name" placeholder="Doctor Name" value={doctor.name} onChange={handleChange} />
+          <input name="email" placeholder="Email" value={doctor.email} onChange={handleChange} />
+          <input name="phone" placeholder="Phone" value={doctor.phone} onChange={handleChange} />
+          <input name="specialization" placeholder="Specialization" value={doctor.specialization} onChange={handleChange} />
+          <button onClick={handleAddDoctor} style={styles.saveButton}>Save Doctor</button>
         </div>
       )}
 
-      {/* APPOINTMENTS TABLE */}
       <h2 style={{ marginTop: "40px" }}>All Appointments</h2>
 
       <table style={styles.table}>
@@ -163,10 +145,9 @@ function AdminDashboard() {
             <th>Doctor</th>
             <th>Date</th>
             <th>Time</th>
-            <th>Audio</th>
-            <th>Video</th>
             <th>Reason</th>
             <th>Status</th>
+            <th>Mail</th>
           </tr>
         </thead>
 
@@ -177,22 +158,27 @@ function AdminDashboard() {
               <td>{appt.doctorName}</td>
               <td>{appt.date}</td>
               <td>{appt.time}</td>
-              <td>{appt.needAudioCall ? "Yes" : "No"}</td>
-              <td>{appt.needVideoCall ? "Yes" : "No"}</td>
               <td>{appt.reason}</td>
 
               <td>
                 <select
                   value={appt.status}
-                  onChange={(e) =>
-                    updateStatus(appt.$id, e.target.value)
-                  }
+                  onChange={(e) => updateStatus(appt.$id, e.target.value)}
                 >
                   <option value="Pending">Pending</option>
                   <option value="Approved">Approved</option>
                   <option value="Rejected">Rejected</option>
                   <option value="Completed">Completed</option>
                 </select>
+              </td>
+
+              <td>
+                <button
+                  style={styles.mailButton}
+                  onClick={() => sendMail(appt)}
+                >
+                  Send
+                </button>
               </td>
             </tr>
           ))}
@@ -203,49 +189,12 @@ function AdminDashboard() {
 }
 
 const styles = {
-  container: {
-    minHeight: "100vh",
-    padding: "30px",
-    backgroundColor: "#f4f6f8",
-  },
-  addButton: {
-    padding: "12px 25px",
-    fontSize: "16px",
-    backgroundColor: "#3498db",
-    color: "white",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "pointer",
-  },
-  form: {
-    marginTop: "20px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-    background: "white",
-    padding: "20px",
-    borderRadius: "8px",
-    width: "300px",
-  },
-  input: {
-    padding: "10px",
-    fontSize: "15px",
-  },
-  saveButton: {
-    padding: "10px",
-    fontSize: "16px",
-    backgroundColor: "#2ecc71",
-    color: "white",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "pointer",
-  },
-  table: {
-    width: "100%",
-    marginTop: "20px",
-    borderCollapse: "collapse",
-    background: "white",
-  },
+  container: { padding: "30px", background: "#f4f6f8" },
+  addButton: { padding: "10px 20px", background: "#3498db", color: "#fff" },
+  saveButton: { padding: "10px", background: "#2ecc71", color: "#fff" },
+  mailButton: { padding: "6px 14px", background: "#9b59b6", color: "#fff", border: "none" },
+  form: { marginTop: "20px", background: "#fff", padding: "20px" },
+  table: { width: "100%", marginTop: "20px", background: "#fff" },
 };
 
 export default AdminDashboard;
