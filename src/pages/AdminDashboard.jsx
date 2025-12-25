@@ -92,7 +92,7 @@ function AdminDashboard() {
   // ================= SEND MAIL =================
   const sendMail = async (appt) => {
     try {
-      // Fetch doctor email from Doctor collection
+      // Fetch doctor email from Appwrite
       const doctorDoc = await databases.listDocuments(
         DATABASE_ID,
         DOCTOR_COLLECTION_ID,
@@ -129,16 +129,14 @@ function AdminDashboard() {
     }
   };
 
-  // ================= CREATE CALL TOKEN & SEND =================
+  // ================= AUDIO CALL =================
   const createTokenAndSendMail = async (appt) => {
     try {
-      // Fetch doctor email
       const doctorDoc = await databases.listDocuments(
         DATABASE_ID,
         DOCTOR_COLLECTION_ID,
         [Query.equal("name", appt.doctorName)]
       );
-
       const doctorEmail =
         doctorDoc.total > 0 ? doctorDoc.documents[0].email : null;
 
@@ -158,9 +156,46 @@ function AdminDashboard() {
       const data = await res.json();
 
       if (data.success) {
-        alert("Call link sent to patient and doctor email");
+        alert("Audio call link sent to patient and doctor email");
       } else {
-        alert("Failed to create call");
+        alert("Failed to create audio call");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Backend error");
+    }
+  };
+
+  // ================= VIDEO CALL =================
+  const createVideoCallAndSendMail = async (appt) => {
+    try {
+      const doctorDoc = await databases.listDocuments(
+        DATABASE_ID,
+        DOCTOR_COLLECTION_ID,
+        [Query.equal("name", appt.doctorName)]
+      );
+      const doctorEmail =
+        doctorDoc.total > 0 ? doctorDoc.documents[0].email : null;
+
+      const res = await fetch(
+        "http://localhost:5000/create-video-call-and-send-mail",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            patientEmail: appt.patientEmail,
+            doctorEmail: doctorEmail,
+            doctorName: appt.doctorName,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert("Video call link sent to patient and doctor email");
+      } else {
+        alert("Failed to create video call");
       }
     } catch (err) {
       console.error(err);
@@ -199,6 +234,7 @@ function AdminDashboard() {
             <th>Status</th>
             <th>Mail</th>
             <th>Audio Call</th>
+            <th>Video Call</th>
           </tr>
         </thead>
 
@@ -240,11 +276,19 @@ function AdminDashboard() {
                   >
                     Create Token
                   </button>
-                ) : (
-                  "No"
-                )}
+                ) : "No"}
               </td>
 
+              <td>
+                {appt.needVideoCall ? (
+                  <button
+                    style={styles.videoButton}
+                    onClick={() => createVideoCallAndSendMail(appt)}
+                  >
+                    Create Video Call
+                  </button>
+                ) : "No"}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -259,6 +303,7 @@ const styles = {
   saveButton: { padding: "10px", background: "#2ecc71", color: "#fff" },
   mailButton: { padding: "6px 14px", background: "#9b59b6", color: "#fff", border: "none" },
   audioButton: { padding: "6px 12px", background: "#e67e22", color: "#fff", border: "none", cursor: "pointer" },
+  videoButton: { padding: "6px 12px", background: "#16a34a", color: "#fff", border: "none", cursor: "pointer" },
   form: { marginTop: "20px", background: "#fff", padding: "20px" },
   table: { width: "100%", marginTop: "20px", background: "#fff" },
 };
