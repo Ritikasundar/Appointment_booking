@@ -1,17 +1,33 @@
+require("dotenv").config();
 const express = require("express");
 const nodemailer = require("nodemailer");
 const cors = require("cors");
 const { RtcTokenBuilder, RtcRole } = require("agora-access-token");
 const axios = require("axios");
+const BUCKET_ID = "694f7dc00017efbfa0c3";
+const PROJECT_ID = "6941607000385a4e80e2";
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+
+console.log("GEMINI KEY LOADED:", process.env.GEMINI_API_KEY);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // ================== AGORA CONFIG ==================
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const APP_ID = "36a8711c6a374888bf3de28263b4b482";
 const APP_CERTIFICATE = "ac4a4eae979d47f9a423710e01bd5b59";
 const FRONTEND_URL = "http://localhost:5173";
+
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-pro" // stable & fast
+});
+
+
 // ================== MAIL CONFIG ==================
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -132,6 +148,38 @@ Hospital Team
     res.status(500).json({ success: false });
   }
 });
+// ================== SEND REPORT MAIL ==================
+app.post("/send-report-mail", async (req, res) => {
+  const { patientEmail, reportFileId } = req.body;
+
+  try {
+    const reportUrl = `https://cloud.appwrite.io/v1/storage/buckets/${process.env.BUCKET_ID || "694f7dc00017efbfa0c3"}/files/${reportFileId}/view?project=6941607000385a4e80e2`;
+
+    const message = `
+Hello,
+
+Your medical report is ready.
+
+Click the link below to view/download your report:
+${reportUrl}
+
+Regards,
+Hospital Team
+`;
+
+    await transporter.sendMail({
+      from: "ritikas2314@gmail.com",
+      to: patientEmail,
+      subject: "Your Medical Report",
+      text: message,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false });
+  }
+});
 
 // ================== VIDEO CALL ==================
 const WHEREBY_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmFwcGVhci5pbiIsImF1ZCI6Imh0dHBzOi8vYXBpLmFwcGVhci5pbi92MSIsImV4cCI6OTAwNzE5OTI1NDc0MDk5MSwiaWF0IjoxNzI1OTA1NTU3LCJvcmdhbml6YXRpb25JZCI6MjY3ODA3LCJqdGkiOiJmNGJiNmUxMy0xODExLTQ1NzQtOTAyYi0yMjgxYzQyZTVlODgifQ.241gW8pKsycQXmK3-akPSnUzw9MJeYdZh29yy6zY27g"; // Replace with your Whereby API key
@@ -180,6 +228,92 @@ Hospital Team
     res.status(500).json({ success: false, error: error.message });
   }
 });
+const pdfjsLib = require("pdfjs-dist/legacy/build/pdf");
+
+async function extractTextFromPdf(uint8Array) {
+  const loadingTask = pdfjsLib.getDocument({ data: uint8Array });
+  const pdf = await loadingTask.promise;
+
+  let text = "";
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+
+    const pageText = content.items
+      .map(item => item.str)
+      .join(" ");
+
+    text += pageText + "\n";
+  }
+
+  return text;
+}
+
+
+
+// ================== EXPLAIN REPORT ==================
+app.post("/explain-report", async (req, res) => {
+  const { reportFileId } = req.body;
+
+  try {
+    console.log("STEP 1: Request received");
+
+    const fileUrl = `https://cloud.appwrite.io/v1/storage/buckets/${process.env.APPWRITE_BUCKET_ID}/files/${reportFileId}/download?project=${process.env.APPWRITE_PROJECT_ID}`;
+
+    const fileResponse = await axios.get(fileUrl, {
+      responseType: "arraybuffer",
+      timeout: 15000,
+    });
+
+    console.log("STEP 2: PDF downloaded");
+
+    const pdfUint8Array = new Uint8Array(fileResponse.data);
+    const extractedText = await extractTextFromPdf(pdfUint8Array);
+    const safeText = extractedText.slice(0, 8000);
+
+    if (!safeText.trim()) {
+      return res.json({
+        success: true,
+        explanation:
+          "This report appears to be scanned or image-based. No readable text was found.",
+      });
+    }
+
+    console.log("STEP 3: Text extracted");
+
+    const result = await model.generateContent({
+      contents: [{
+        role: "user",
+        parts: [{
+          text: `
+You are a medical assistant.
+Explain this medical report in simple patient-friendly language.
+Use bullet points.
+
+Medical Report:
+${safeText}
+          `
+        }]
+      }]
+    });
+
+    console.log("STEP 4: Gemini response generated");
+
+    res.json({
+      success: true,
+      explanation: result.response.text(),
+    });
+
+  } catch (error) {
+    console.error("Explain report error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to explain report",
+    });
+  }
+});
+
 
 // ================== SERVER ==================
 app.listen(5000, () => {

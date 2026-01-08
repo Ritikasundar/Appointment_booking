@@ -5,6 +5,8 @@ import {
   DATABASE_ID,
   APPOINTMENT_COLLECTION_ID,
   PATIENT_COLLECTION_ID,
+  storage,
+  BUCKET_ID,
 } from "../appwrite/config";
 import { Query, ID } from "appwrite";
 
@@ -15,6 +17,9 @@ function PatientDashboard() {
 
   const [appointments, setAppointments] = useState([]);
   const [checkingPatient, setCheckingPatient] = useState(true);
+  const [explanation, setExplanation] = useState("");
+const [loadingExplain, setLoadingExplain] = useState(false);
+
 
   const [form, setForm] = useState({
     doctorName: "",
@@ -39,12 +44,10 @@ function PatientDashboard() {
       );
 
       if (res.documents.length === 0) {
-        // New patient → registration
         navigate("/patient-registration", {
           state: { email: patientEmail },
         });
       } else {
-        // Existing patient → dashboard
         await fetchAppointments();
         setCheckingPatient(false);
       }
@@ -62,33 +65,82 @@ function PatientDashboard() {
     setAppointments(response.documents);
   };
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  // ================= SEND REPORT TO MAIL =================
+const sendReportToMail = async (fileId) => {
+  if (!fileId) {
+    alert("Report not available");
+    return;
+  }
 
-  const bookAppointment = async () => {
-    if (!form.doctorName || !form.doctorEmail || !form.date) {
-      alert("Fill all fields");
-      return;
-    }
-
-    await databases.createDocument(
-      DATABASE_ID,
-      APPOINTMENT_COLLECTION_ID,
-      ID.unique(),
+  try {
+    const response = await fetch(
+      "http://localhost:5000/send-report-mail",
       {
-        patientEmail,
-        doctorName: form.doctorName,
-        doctorEmail: form.doctorEmail,
-        date: form.date,
-        status: "Pending",
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientEmail,
+          reportFileId: fileId,
+        }),
       }
     );
 
-    alert("Appointment booked");
+    const data = await response.json();
 
-    setForm({ doctorName: "", doctorEmail: "", date: "" });
-    fetchAppointments();
+    if (data.success) {
+      alert("Report sent to your email");
+    } else {
+      alert("Failed to send report");
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Server not reachable");
+  }
+};
+// ================= EXPLAIN REPORT =================
+const explainReport = async (fileId) => {
+  if (!fileId) {
+    alert("Report not available");
+    return;
+  }
+
+  try {
+    setLoadingExplain(true);
+    setExplanation("");
+
+    const response = await fetch(
+      "http://localhost:5000/explain-report",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportFileId: fileId }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.success) {
+      setExplanation(data.explanation);
+    } else {
+      alert("Failed to explain report");
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Server error");
+  } finally {
+    setLoadingExplain(false);
+  }
+};
+
+  // ================= VIEW REPORT =================
+  const viewReport = (fileId) => {
+    if (!fileId) {
+      alert("Report not available yet");
+      return;
+    }
+
+    const fileUrl = storage.getFileView(BUCKET_ID, fileId);
+    window.open(fileUrl, "_blank");
   };
 
   if (checkingPatient) {
@@ -120,8 +172,38 @@ function PatientDashboard() {
           <p><b>Doctor:</b> {a.doctorName}</p>
           <p><b>Date:</b> {a.date}</p>
           <p><b>Status:</b> {a.status}</p>
+
+          <button
+            style={styles.viewBtn}
+            onClick={() => viewReport(a.reportFileId)}
+            disabled={!a.reportFileId}
+          >
+            View Report
+          </button>
+          <button
+  style={styles.mailBtn}
+  onClick={() => sendReportToMail(a.reportFileId)}
+  disabled={!a.reportFileId}
+>
+  Send to Mail
+</button>
+<button
+  style={styles.explainBtn}
+  onClick={() => explainReport(a.reportFileId)}
+  disabled={!a.reportFileId || loadingExplain}
+>
+  Explain Report
+</button>
+
         </div>
       ))}
+      {explanation && (
+  <div style={styles.explainBox}>
+    <h3>Report Explanation</h3>
+    <p>{explanation}</p>
+  </div>
+)}
+
     </div>
   );
 }
@@ -143,6 +225,45 @@ const styles = {
     marginBottom: "10px",
     borderRadius: "5px",
   },
+  viewBtn: {
+    marginTop: "10px",
+    padding: "6px 12px",
+    backgroundColor: "#1976d2",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    cursor: "pointer",
+  
+  },
+  mailBtn: {
+  marginTop: "8px",
+  marginLeft: "10px",
+  padding: "6px 12px",
+  backgroundColor: "#2ecc71",
+  color: "white",
+  border: "none",
+  borderRadius: "4px",
+  cursor: "pointer",
+},
+explainBtn: {
+  marginTop: "8px",
+  marginLeft: "10px",
+  padding: "6px 12px",
+  backgroundColor: "#f39c12",
+  color: "white",
+  border: "none",
+  borderRadius: "4px",
+  cursor: "pointer",
+},
+
+explainBox: {
+  marginTop: "20px",
+  padding: "15px",
+  background: "#fff8e1",
+  borderRadius: "6px",
+  lineHeight: "1.6",
+},
+
 };
 
 export default PatientDashboard;

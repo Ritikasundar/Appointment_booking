@@ -3,7 +3,10 @@ import {
   databases,
   DATABASE_ID,
   DOCTOR_COLLECTION_ID,
+  storage,
+  BUCKET_ID,
 } from "../appwrite/config";
+
 import { ID, Query } from "appwrite";
 
 const APPOINTMENT_COLLECTION_ID = "appointments";
@@ -88,6 +91,64 @@ function AdminDashboard() {
       alert("Failed to update status");
     }
   };
+  // ================= UPLOAD REPORT =================
+const uploadReport = async (appointmentId, file) => {
+  if (!file) return;
+
+  try {
+    const uploadedFile = await storage.createFile(
+      BUCKET_ID,
+      ID.unique(),
+      file
+    );
+
+    await databases.updateDocument(
+      DATABASE_ID,
+      APPOINTMENT_COLLECTION_ID,
+      appointmentId,
+      { reportFileId: uploadedFile.$id }
+    );
+
+    alert("Report uploaded successfully");
+    fetchAppointments();
+  } catch (error) {
+    console.error(error);
+    alert("Failed to upload report");
+  }
+};
+// ================= REMOVE REPORT =================
+const removeReport = async (appointmentId, reportFileId) => {
+  if (!reportFileId) {
+    alert("No report to remove");
+    return;
+  }
+
+  const confirmDelete = window.confirm(
+    "Are you sure you want to remove this report?"
+  );
+
+  if (!confirmDelete) return;
+
+  try {
+    // 1️⃣ Delete file from Storage
+    await storage.deleteFile(BUCKET_ID, reportFileId);
+
+    // 2️⃣ Remove file reference from appointment
+    await databases.updateDocument(
+      DATABASE_ID,
+      APPOINTMENT_COLLECTION_ID,
+      appointmentId,
+      { reportFileId: null }
+    );
+
+    alert("Report removed successfully");
+    fetchAppointments();
+  } catch (error) {
+    console.error(error);
+    alert("Failed to remove report");
+  }
+};
+
 
   // ================= SEND MAIL =================
   const sendMail = async (appt) => {
@@ -235,6 +296,8 @@ function AdminDashboard() {
             <th>Mail</th>
             <th>Audio Call</th>
             <th>Video Call</th>
+            <th>Upload Report</th>
+
           </tr>
         </thead>
 
@@ -289,6 +352,31 @@ function AdminDashboard() {
                   </button>
                 ) : "No"}
               </td>
+              <td>
+  <input
+    type="file"
+    accept=".pdf,.jpg,.png"
+    onChange={(e) =>
+      uploadReport(appt.$id, e.target.files[0])
+    }
+  />
+</td>
+<td>
+  {appt.reportFileId ? (
+    <button
+      style={styles.removeButton}
+      onClick={() =>
+        removeReport(appt.$id, appt.reportFileId)
+      }
+    >
+      Remove
+    </button>
+  ) : (
+    "No Report"
+  )}
+</td>
+
+
             </tr>
           ))}
         </tbody>
